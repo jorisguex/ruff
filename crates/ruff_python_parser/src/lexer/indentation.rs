@@ -82,8 +82,8 @@ impl Indentation {
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub(super) struct UnexpectedIndentation;
 
-// The indentations stack is used to keep track of the current indentation level
-// [See Indentation](docs.python.org/3/reference/lexical_analysis.html#indentation).
+/// The indentations stack is used to keep track of the current indentation level
+/// [See Indentation](docs.python.org/3/reference/lexical_analysis.html#indentation).
 #[derive(Debug, Clone, Default)]
 pub(super) struct Indentations {
     stack: Vec<Indentation>,
@@ -123,6 +123,14 @@ impl Indentations {
     pub(super) fn current(&self) -> &Indentation {
         static ROOT: Indentation = Indentation::root();
         self.stack.last().unwrap_or(&ROOT)
+    }
+
+    pub(super) fn len(&self) -> usize {
+        self.stack.len()
+    }
+
+    pub(super) fn truncate(&mut self, len: usize) {
+        self.stack.truncate(len)
     }
 }
 

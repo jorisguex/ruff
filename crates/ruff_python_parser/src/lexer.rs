@@ -45,27 +45,39 @@ use crate::lexer::fstring::{FStringContext, FStrings};
 use crate::lexer::indentation::{Indentation, Indentations};
 use crate::soft_keywords::SoftKeywordTransformer;
 use crate::token::Tok;
-use crate::Mode;
+use crate::{Mode, TokenKind};
 
 mod cursor;
 mod fstring;
 mod indentation;
 
 /// A lexer for Python source code.
-pub struct Lexer<'source> {
-    // Contains the source code to be lexed.
-    cursor: Cursor<'source>,
-    source: &'source str,
+#[derive(Debug)]
+pub struct Lexer<'src> {
+    /// Source code to be lexed.
+    source: &'src str,
 
+    /// A pointer to the current character of the source code which is being lexed.
+    cursor: Cursor<'src>,
+
+    /// The current lexed token.
+    current: Spanned,
+
+    /// Lexer state.
     state: State,
-    // Amount of parenthesis.
+
+    /// Nesting level represents the amount of parenthesis the lexer is currently in.
+    /// If it's > 0, the lexer is in a parenthesized context.
     nesting: u32,
-    // Indentation levels.
+
+    /// A stack of indentation representing the current indentation level.
     indentations: Indentations,
     pending_indentation: Option<Indentation>,
-    // Lexer mode.
+
+    /// Lexer mode.
     mode: Mode,
-    // F-string contexts.
+
+    /// F-string contexts.
     fstrings: FStrings,
 }
 
@@ -141,31 +153,42 @@ pub fn lex_starts_at(
     }
 }
 
-impl<'source> Lexer<'source> {
+impl<'src> Lexer<'src> {
     /// Create a new lexer from T and a starting location. You probably want to use
     /// [`lex`] instead.
-    pub fn new(input: &'source str, mode: Mode) -> Self {
+    pub fn new(input: &'src str, mode: Mode) -> Self {
         assert!(
             u32::try_from(input.len()).is_ok(),
             "Lexer only supports files with a size up to 4GB"
         );
 
-        let mut lxr = Lexer {
+        let mut lexer = Lexer {
+            source: input,
+            cursor: Cursor::new(input),
             state: State::AfterNewline,
+            current: (Tok::EndOfFile, TextRange::default()),
             nesting: 0,
             indentations: Indentations::default(),
             pending_indentation: None,
-
-            source: input,
-            cursor: Cursor::new(input),
             mode,
             fstrings: FStrings::default(),
         };
+
         // TODO: Handle possible mismatch between BOM and explicit encoding declaration.
         // spell-checker:ignore feff
-        lxr.cursor.eat_char('\u{feff}');
+        lexer.cursor.eat_char('\u{feff}');
 
-        lxr
+        lexer
+    }
+
+    /// Returns the kind of the current token.
+    pub(crate) fn current_kind(&self) -> TokenKind {
+        TokenKind::from_token(&self.current.0)
+    }
+
+    /// Returns the range of the current token.
+    pub(crate) fn current_range(&self) -> TextRange {
+        self.current.1
     }
 
     /// Lex an identifier. Also used for keywords and string/bytes literals with a prefix.
@@ -825,9 +848,22 @@ impl<'source> Lexer<'source> {
         })
     }
 
-    // This is the main entry point. Call this function to retrieve the next token.
-    // This function is used by the iterator implementation.
+    /// Moves the lexer to the next token.
+    ///
+    /// Returns the old current token as an owned value.
     pub fn next_token(&mut self) -> LexResult {
+        self.next_token_with_context(LexerContext::Regular)
+    }
+
+    pub(crate) fn next_token_with_context(&mut self, context: LexerContext) -> LexResult {
+        let next = self.next_token_impl()?;
+        Ok(match context {
+            LexerContext::Regular => std::mem::replace(&mut self.current, next),
+            LexerContext::Peeking => next,
+        })
+    }
+
+    fn next_token_impl(&mut self) -> LexResult {
         if let Some(fstring) = self.fstrings.current() {
             if !fstring.is_in_expression(self.nesting) {
                 match self.lex_fstring_middle_or_end() {
@@ -1303,7 +1339,7 @@ impl<'source> Lexer<'source> {
     }
 
     #[inline]
-    fn token_text(&self) -> &'source str {
+    fn token_text(&self) -> &'src str {
         &self.source[self.token_range()]
     }
 
@@ -1317,6 +1353,41 @@ impl<'source> Lexer<'source> {
     #[inline]
     fn token_start(&self) -> TextSize {
         self.token_range().start()
+    }
+
+    pub(crate) fn take_value(&mut self) -> TokenValue {
+        let (tok, _) = std::mem::replace(&mut self.current, (Tok::EndOfFile, TextRange::default()));
+        TokenValue::from_token(tok)
+    }
+
+    /// Creates a checkpoint to which it can later return to using [Self::rewind].
+    pub(crate) fn checkpoint(&self) -> LexerCheckpoint<'src> {
+        LexerCheckpoint {
+            cursor: self.cursor.clone(),
+            state: self.state,
+            nesting: self.nesting,
+            indentations_position: self.indentations.len(),
+            pending_indentation: self.pending_indentation,
+            fstrings_position: self.fstrings.len(),
+        }
+    }
+
+    /// Restore the lexer to the given checkpoint.
+    ///
+    /// # Panics
+    ///
+    /// If the current indentation is less than the indentation at the checkpoint
+    /// If the lexer is out of any f-strings it was in at the time of checkpoint
+    pub(crate) fn rewind(&mut self, checkpoint: LexerCheckpoint) {
+        assert!(self.indentations.len() >= checkpoint.indentations_position);
+        assert!(self.fstrings.len() >= checkpoint.fstrings_position);
+
+        self.cursor = checkpoint.cursor;
+        self.state = checkpoint.state;
+        self.nesting = checkpoint.nesting;
+        self.indentations.truncate(checkpoint.indentations_position);
+        self.pending_indentation = checkpoint.pending_indentation;
+        self.fstrings.truncate(checkpoint.fstrings_position);
     }
 }
 
@@ -1459,6 +1530,63 @@ impl std::fmt::Display for LexicalErrorType {
             }
         }
     }
+}
+
+#[derive(Debug)]
+pub(crate) enum TokenValue {
+    None,
+    Name(Box<str>),
+    Int(Int),
+    Float(f64),
+    Complex {
+        real: f64,
+        imag: f64,
+    },
+    String {
+        value: Box<str>,
+        kind: AnyStringKind,
+    },
+    FStringStart(AnyStringKind),
+    FStringMiddle {
+        value: Box<str>,
+        kind: AnyStringKind,
+    },
+    IpyEscapeCommand {
+        value: Box<str>,
+        kind: IpyEscapeKind,
+    },
+    Comment(Box<str>),
+}
+
+impl TokenValue {
+    pub fn from_token(tok: Tok) -> TokenValue {
+        match tok {
+            Tok::Name { name } => TokenValue::Name(name),
+            Tok::Int { value } => TokenValue::Int(value),
+            Tok::Float { value } => TokenValue::Float(value),
+            Tok::Complex { real, imag } => TokenValue::Complex { real, imag },
+            Tok::String { value, kind } => TokenValue::String { value, kind },
+            Tok::FStringStart(kind) => TokenValue::FStringStart(kind),
+            Tok::FStringMiddle { value, kind } => TokenValue::FStringMiddle { value, kind },
+            Tok::Comment(value) => TokenValue::Comment(value),
+            _ => TokenValue::None,
+        }
+    }
+}
+
+struct LexerCheckpoint<'src> {
+    cursor: Cursor<'src>,
+    state: State,
+    nesting: u32,
+    indentations_position: usize,
+    pending_indentation: Option<Indentation>,
+    fstrings_position: usize,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub(crate) enum LexerContext {
+    Regular,
+    Peeking,
 }
 
 #[derive(Copy, Clone, Debug)]

@@ -127,4 +127,12 @@ impl FStrings {
     pub(crate) fn current_mut(&mut self) -> Option<&mut FStringContext> {
         self.stack.last_mut()
     }
+
+    pub(super) fn len(&self) -> usize {
+        self.stack.len()
+    }
+
+    pub(super) fn truncate(&mut self, len: usize) {
+        self.stack.truncate(len)
+    }
 }

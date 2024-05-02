@@ -117,7 +117,7 @@ pub use crate::parser::Program;
 pub use crate::token::{Tok, TokenKind};
 
 use ruff_python_ast::{Expr, Mod, ModModule, PySourceType, Suite};
-use ruff_text_size::TextSize;
+use ruff_text_size::{TextRange, TextSize};
 
 mod error;
 pub mod lexer;

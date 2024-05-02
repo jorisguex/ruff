@@ -84,9 +84,6 @@ pub(crate) struct Parser<'src> {
     /// Specify the mode in which the code will be parsed.
     mode: Mode,
 
-    /// Current token along with its range.
-    current: Spanned,
-
     /// The ID of the current token. This is used to track the progress of the parser
     /// to avoid infinite loops when the parser is stuck.
     current_token_id: TokenId,

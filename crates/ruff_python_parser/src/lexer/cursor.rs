@@ -3,16 +3,19 @@ use std::str::Chars;
 
 pub(crate) const EOF_CHAR: char = '\0';
 
+/// A cursor represents a pointer in the source code
 #[derive(Clone, Debug)]
-pub(super) struct Cursor<'a> {
-    chars: Chars<'a>,
+pub(super) struct Cursor<'src> {
+    /// An iterator over the [`char`]'s of the source code.
+    chars: Chars<'src>,
+    /// Length of the source code.
     source_length: TextSize,
     #[cfg(debug_assertions)]
     prev_char: char,
 }
 
-impl<'a> Cursor<'a> {
-    pub(crate) fn new(source: &'a str) -> Self {
+impl<'src> Cursor<'src> {
+    pub(crate) fn new(source: &'src str) -> Self {
         Self {
             source_length: source.text_len(),
             chars: source.chars(),
@@ -42,7 +45,7 @@ impl<'a> Cursor<'a> {
     }
 
     /// Returns the remaining text to lex.
-    pub(super) fn rest(&self) -> &'a str {
+    pub(super) fn rest(&self) -> &'src str {
         self.chars.as_str()
     }
 
