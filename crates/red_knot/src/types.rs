@@ -521,7 +521,7 @@ pub(crate) struct ClassType {
     /// Name of the class at definition
     name: Name,
     /// `ScopeId` of the class body
-    pub(crate) scope_id: ScopeId,
+    scope_id: ScopeId,
     /// Types of all class bases
     bases: Vec<Type>,
 }
