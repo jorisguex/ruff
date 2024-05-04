@@ -173,18 +173,17 @@ fn lint_bad_overrides(context: &SemanticLintContext) -> QueryResult<()> {
             // not a method of a class
             continue;
         };
-        let decorators: Vec<_> = func.function(context.db)?.decorators().to_vec();
-        if decorators.iter().any(|deco_ty| {
-            if let Type::Function(deco_func) = deco_ty {
-                deco_func.file() == typing_file
-                    && deco_func
-                        .symbol(context.db)
-                        .expect("TODO should bubble this up")
-                        == typing_override
-            } else {
-                false
+        let mut override_decorated = false;
+        for deco_ty in func.function(context.db)?.decorators() {
+            let Type::Function(deco_func) = deco_ty else {
+                continue;
+            };
+            if deco_func.file() == typing_file && deco_func.symbol(context.db)? == typing_override {
+                override_decorated = true;
+                break;
             }
-        }) {
+        }
+        if override_decorated {
             let method_name = func.name(context.db)?;
             if class
                 .get_super_class_member(context.db, &method_name)?
@@ -195,8 +194,8 @@ fn lint_bad_overrides(context: &SemanticLintContext) -> QueryResult<()> {
                     format!(
                         "Method {}.{} is decorated with `typing.override` but does not override any base class method",
                         class.name(context.db)?,
-                        func.name(context.db)?),
-                    );
+                        method_name,
+                    ));
             }
         }
     }
