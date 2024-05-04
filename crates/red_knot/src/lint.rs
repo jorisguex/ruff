@@ -9,6 +9,7 @@ use ruff_python_ast::{ModModule, StringLiteral};
 use crate::cache::KeyValueCache;
 use crate::db::{HasJar, LintDb, LintJar, QueryResult, SemanticDb};
 use crate::files::FileId;
+use crate::module::ModuleName;
 use crate::parse::Parsed;
 use crate::source::Source;
 use crate::symbols::{Definition, SymbolId, SymbolTable};
@@ -94,6 +95,7 @@ where
         };
 
         lint_unresolved_imports(&context)?;
+        lint_bad_overrides(&context)?;
 
         Ok(Diagnostics::from(context.diagnostics.take()))
     })
@@ -137,6 +139,67 @@ fn lint_unresolved_imports(context: &SemanticLintContext) -> QueryResult<()> {
         }
     }
 
+    Ok(())
+}
+
+fn lint_bad_overrides(context: &SemanticLintContext) -> QueryResult<()> {
+    // TODO possibly we should have a special marker on the real typing module (from typeshed) so
+    // if you have your own "typing" module in your project, we don't consider it THE typing module
+    let Some(typing_module) = context.db.resolve_module(ModuleName::new("typing"))? else {
+        debug_assert!(false, "typing module should always exist");
+        return Ok(());
+    };
+    let typing_file = context.db.module_to_file(typing_module)?;
+    let typing_table = context.db.symbol_table(typing_file)?;
+    let Some(typing_override) = typing_table.root_symbol_id_by_name("override") else {
+        debug_assert!(false, "typing.override should exist");
+        return Ok(());
+    };
+
+    // TODO we should maybe index definitions by type instead of iterating all, or else iterate all
+    // just once, match, and branch to all lint rules that care about a type of definition
+    for (symbol, definition) in context.symbols().all_definitions() {
+        if !matches!(definition, Definition::FunctionDef(_)) {
+            continue;
+        }
+        let ty = context
+            .db
+            .infer_definition_type(context.file_id, symbol, definition.clone())?;
+        let Type::Function(func) = ty else {
+            debug_assert!(false, "type of a FunctionDef should always be a Function");
+            continue;
+        };
+        let Some(class) = func.get_containing_class(context.db)? else {
+            // not a method of a class
+            continue;
+        };
+        let decorators: Vec<_> = func.function(context.db)?.decorators().to_vec();
+        if decorators.iter().any(|deco_ty| {
+            if let Type::Function(deco_func) = deco_ty {
+                deco_func.file() == typing_file
+                    && deco_func
+                        .symbol(context.db)
+                        .expect("TODO should bubble this up")
+                        == typing_override
+            } else {
+                false
+            }
+        }) {
+            let method_name = func.name(context.db)?;
+            if class
+                .get_super_class_member(context.db, &method_name)?
+                .is_none()
+            {
+                // TODO should have a qualname() method to support nested classes
+                context.push_diagnostic(
+                    format!(
+                        "Method {}.{} is decorated with `typing.override` but does not override any base class method",
+                        class.name(context.db)?,
+                        func.name(context.db)?),
+                    );
+            }
+        }
+    }
     Ok(())
 }
 

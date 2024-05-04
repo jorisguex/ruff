@@ -11,13 +11,13 @@ use crate::db::{
 use crate::files::{FileId, Files};
 use crate::lint::{lint_semantic, lint_syntax, Diagnostics};
 use crate::module::{
-    add_module, file_to_module, path_to_module, resolve_module, set_module_search_paths, Module,
-    ModuleData, ModuleName, ModuleSearchPath,
+    add_module, file_to_module, module_to_file, path_to_module, resolve_module,
+    set_module_search_paths, Module, ModuleData, ModuleName, ModuleSearchPath,
 };
 use crate::parse::{parse, Parsed};
 use crate::source::{source_text, Source};
 use crate::symbols::{symbol_table, SymbolId, SymbolTable};
-use crate::types::{infer_symbol_type, Type};
+use crate::types::{infer_definition_type, infer_symbol_type, type_store, Type};
 use crate::Workspace;
 
 pub mod check;
@@ -102,6 +102,10 @@ impl SemanticDb for Program {
         file_to_module(self, file_id)
     }
 
+    fn module_to_file(&self, module: Module) -> QueryResult<FileId> {
+        module_to_file(self, module)
+    }
+
     fn path_to_module(&self, path: &Path) -> QueryResult<Option<Module>> {
         path_to_module(self, path)
     }
@@ -110,8 +114,21 @@ impl SemanticDb for Program {
         symbol_table(self, file_id)
     }
 
+    fn type_store(&self) -> QueryResult<&crate::types::TypeStore> {
+        type_store(self)
+    }
+
     fn infer_symbol_type(&self, file_id: FileId, symbol_id: SymbolId) -> QueryResult<Type> {
         infer_symbol_type(self, file_id, symbol_id)
+    }
+
+    fn infer_definition_type(
+        &self,
+        file_id: FileId,
+        symbol_id: SymbolId,
+        definition: crate::symbols::Definition,
+    ) -> QueryResult<Type> {
+        infer_definition_type(self, file_id, symbol_id, definition)
     }
 
     // Mutations

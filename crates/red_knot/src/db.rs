@@ -11,7 +11,7 @@ use crate::lint::{Diagnostics, LintSemanticStorage, LintSyntaxStorage};
 use crate::module::{Module, ModuleData, ModuleName, ModuleResolver, ModuleSearchPath};
 use crate::parse::{Parsed, ParsedStorage};
 use crate::source::{Source, SourceStorage};
-use crate::symbols::{SymbolId, SymbolTable, SymbolTablesStorage};
+use crate::symbols::{Definition, SymbolId, SymbolTable, SymbolTablesStorage};
 use crate::types::{Type, TypeStore};
 
 mod jars;
@@ -115,9 +115,20 @@ pub trait SemanticDb: SourceDb {
 
     fn file_to_module(&self, file_id: FileId) -> QueryResult<Option<Module>>;
 
+    fn module_to_file(&self, module: Module) -> QueryResult<FileId>;
+
     fn path_to_module(&self, path: &Path) -> QueryResult<Option<Module>>;
 
     fn symbol_table(&self, file_id: FileId) -> QueryResult<Arc<SymbolTable>>;
+
+    fn type_store(&self) -> QueryResult<&TypeStore>;
+
+    fn infer_definition_type(
+        &self,
+        file_id: FileId,
+        symbol_id: SymbolId,
+        definition: Definition,
+    ) -> QueryResult<Type>;
 
     fn infer_symbol_type(&self, file_id: FileId, symbol_id: SymbolId) -> QueryResult<Type>;
 
@@ -167,13 +178,13 @@ pub(crate) mod tests {
     use crate::files::{FileId, Files};
     use crate::lint::{lint_semantic, lint_syntax, Diagnostics};
     use crate::module::{
-        add_module, file_to_module, path_to_module, resolve_module, set_module_search_paths,
-        Module, ModuleData, ModuleName, ModuleSearchPath,
+        add_module, file_to_module, module_to_file, path_to_module, resolve_module,
+        set_module_search_paths, Module, ModuleData, ModuleName, ModuleSearchPath,
     };
     use crate::parse::{parse, Parsed};
     use crate::source::{source_text, Source};
-    use crate::symbols::{symbol_table, SymbolId, SymbolTable};
-    use crate::types::{infer_symbol_type, Type};
+    use crate::symbols::{symbol_table, Definition, SymbolId, SymbolTable};
+    use crate::types::{infer_definition_type, infer_symbol_type, type_store, Type, TypeStore};
 
     use super::{SemanticDb, SemanticJar};
 
@@ -242,6 +253,10 @@ pub(crate) mod tests {
             file_to_module(self, file_id)
         }
 
+        fn module_to_file(&self, module: Module) -> QueryResult<FileId> {
+            module_to_file(self, module)
+        }
+
         fn path_to_module(&self, path: &Path) -> QueryResult<Option<Module>> {
             path_to_module(self, path)
         }
@@ -250,8 +265,21 @@ pub(crate) mod tests {
             symbol_table(self, file_id)
         }
 
+        fn type_store(&self) -> QueryResult<&TypeStore> {
+            type_store(self)
+        }
+
         fn infer_symbol_type(&self, file_id: FileId, symbol_id: SymbolId) -> QueryResult<Type> {
             infer_symbol_type(self, file_id, symbol_id)
+        }
+
+        fn infer_definition_type(
+            &self,
+            file_id: FileId,
+            symbol_id: SymbolId,
+            definition: Definition,
+        ) -> QueryResult<Type> {
+            infer_definition_type(self, file_id, symbol_id, definition)
         }
 
         fn add_module(&mut self, path: &Path) -> Option<(Module, Vec<Arc<ModuleData>>)> {

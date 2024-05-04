@@ -4,10 +4,18 @@ use ruff_python_ast::AstNode;
 
 use crate::db::{HasJar, QueryResult, SemanticDb, SemanticJar};
 use crate::module::ModuleName;
-use crate::symbols::{ClassDefinition, Definition, ImportFromDefinition, SymbolId};
-use crate::types::Type;
+use crate::symbols::{Definition, ImportFromDefinition, SymbolId};
+use crate::types::{Type, TypeStore};
 use crate::FileId;
 use ruff_python_ast as ast;
+
+#[tracing::instrument(level = "trace", skip(db))]
+pub fn type_store<Db>(db: &Db) -> QueryResult<&TypeStore>
+where
+    Db: SemanticDb + HasJar<SemanticJar>,
+{
+    Ok(&db.jar()?.type_store)
+}
 
 // FIXME: Figure out proper dead-lock free synchronisation now that this takes `&db` instead of `&mut db`.
 #[tracing::instrument(level = "trace", skip(db))]
@@ -28,9 +36,30 @@ where
 
     // TODO handle multiple defs, conditional defs...
     assert_eq!(defs.len(), 1);
+
+    let ty = db.infer_definition_type(file_id, symbol_id, defs[0].clone())?;
+
+    db.jar()?
+        .type_store
+        .cache_symbol_type(file_id, symbol_id, ty);
+
+    // TODO record dependencies
+    Ok(ty)
+}
+
+#[tracing::instrument(level = "trace", skip(db))]
+pub fn infer_definition_type<Db>(
+    db: &Db,
+    file_id: FileId,
+    symbol_id: SymbolId,
+    definition: Definition,
+) -> QueryResult<Type>
+where
+    Db: SemanticDb + HasJar<SemanticJar>,
+{
     let type_store = &db.jar()?.type_store;
 
-    let ty = match &defs[0] {
+    match definition {
         Definition::ImportFrom(ImportFromDefinition {
             module,
             name,
@@ -42,21 +71,22 @@ where
             if let Some(module) = db.resolve_module(module_name)? {
                 let remote_file_id = module.path(db)?.file();
                 let remote_symbols = db.symbol_table(remote_file_id)?;
-                if let Some(remote_symbol_id) = remote_symbols.root_symbol_id_by_name(name) {
-                    db.infer_symbol_type(remote_file_id, remote_symbol_id)?
+                if let Some(remote_symbol_id) = remote_symbols.root_symbol_id_by_name(&name) {
+                    db.infer_symbol_type(remote_file_id, remote_symbol_id)
                 } else {
-                    Type::Unknown
+                    Ok(Type::Unknown)
                 }
             } else {
-                Type::Unknown
+                Ok(Type::Unknown)
             }
         }
-        Definition::ClassDef(ClassDefinition { node_key, scope_id }) => {
+        Definition::ClassDef(node_key) => {
             if let Some(ty) = type_store.get_cached_node_type(file_id, node_key.erased()) {
-                ty
+                Ok(ty)
             } else {
                 let parsed = db.parse(file_id)?;
                 let ast = parsed.ast();
+                let table = db.symbol_table(file_id)?;
                 let node = node_key.resolve_unwrap(ast.as_any_node_ref());
 
                 let mut bases = Vec::with_capacity(node.bases().len());
@@ -64,19 +94,19 @@ where
                 for base in node.bases() {
                     bases.push(infer_expr_type(db, file_id, base)?);
                 }
-
-                let ty =
-                    Type::Class(type_store.add_class(file_id, &node.name.id, *scope_id, bases));
+                let scope_id = table.scope_id_for_node(node_key.erased());
+                let ty = Type::Class(type_store.add_class(file_id, &node.name.id, scope_id, bases));
                 type_store.cache_node_type(file_id, *node_key.erased(), ty);
-                ty
+                Ok(ty)
             }
         }
         Definition::FunctionDef(node_key) => {
             if let Some(ty) = type_store.get_cached_node_type(file_id, node_key.erased()) {
-                ty
+                Ok(ty)
             } else {
                 let parsed = db.parse(file_id)?;
                 let ast = parsed.ast();
+                let table = db.symbol_table(file_id)?;
                 let node = node_key
                     .resolve(ast.as_any_node_ref())
                     .expect("node key should resolve");
@@ -86,12 +116,12 @@ where
                     .iter()
                     .map(|decorator| infer_expr_type(db, file_id, &decorator.expression))
                     .collect::<QueryResult<_>>()?;
-
+                let scope_id = table.scope_id_for_node(node_key.erased());
                 let ty = type_store
-                    .add_function(file_id, &node.name.id, decorator_tys)
+                    .add_function(file_id, &node.name.id, symbol_id, scope_id, decorator_tys)
                     .into();
                 type_store.cache_node_type(file_id, *node_key.erased(), ty);
-                ty
+                Ok(ty)
             }
         }
         Definition::Assignment(node_key) => {
@@ -99,15 +129,10 @@ where
             let ast = parsed.ast();
             let node = node_key.resolve_unwrap(ast.as_any_node_ref());
             // TODO handle unpacking assignment correctly
-            infer_expr_type(db, file_id, &node.value)?
+            infer_expr_type(db, file_id, &node.value)
         }
         _ => todo!("other kinds of definitions"),
-    };
-
-    type_store.cache_symbol_type(file_id, symbol_id, ty);
-
-    // TODO record dependencies
-    Ok(ty)
+    }
 }
 
 fn infer_expr_type<Db>(db: &Db, file_id: FileId, expr: &ast::Expr) -> QueryResult<Type>
