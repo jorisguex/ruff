@@ -9,7 +9,7 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use lsp_types::{ClientCapabilities, Url};
 
-use crate::edit::DocumentVersion;
+use crate::edit::{DocumentVersion, NotebookDocument};
 use crate::PositionEncoding;
 
 pub(crate) use self::capabilities::ResolvedClientCapabilities;
@@ -62,6 +62,14 @@ impl Session {
             position_encoding: self.position_encoding,
             url: url.clone(),
         })
+    }
+
+    pub(crate) fn open_notebook_document(&mut self, url: &Url, notebook: NotebookDocument) {
+        //self.workspaces.open_notebook_document(url, notebook);
+    }
+
+    pub(crate) fn close_notebook_document(&mut self, url: &Url) {
+        //self.workspaces.close_notebook_document(url);
     }
 
     pub(crate) fn open_document(&mut self, url: &Url, contents: String, version: DocumentVersion) {

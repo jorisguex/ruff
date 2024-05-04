@@ -1,18 +1,93 @@
 //! Types and utilities for working with text, modifying source files, and `Ruff <-> LSP` type conversion.
 
 mod document;
+mod notebook;
 mod range;
 mod replacement;
 
 use std::collections::HashMap;
 
-pub use document::Document;
 pub(crate) use document::DocumentVersion;
+pub use document::PythonDocument;
 use lsp_types::PositionEncodingKind;
+pub(crate) use notebook::NotebookDocument;
 pub(crate) use range::{RangeExt, ToRangeExt};
 pub(crate) use replacement::Replacement;
+use ruff_linter::source_kind::SourceKind;
+use ruff_source_file::LineIndex;
 
 use crate::session::ResolvedClientCapabilities;
+
+/// A wrapper for a document. Can be either a python document (`.py`)
+/// or a notebook document (`.ipynb`).
+#[derive(Clone)]
+pub(crate) enum Document {
+    Python(PythonDocument),
+    Notebook(NotebookDocument)
+}
+
+impl Document {
+    pub(crate) fn version(&self) -> DocumentVersion {
+        match self {
+            Self::Notebook(notebook) => notebook.version(),
+            Self::Python(py) => py.version(),
+        }
+    }
+    pub(crate) fn make_index(&self) -> LineIndex {
+        match self {
+            Self::Notebook(_) => todo!(),
+            Self::Python(py) => py.index().clone(),
+        }
+    }
+    pub(crate) fn make_source_kind(&self) -> SourceKind {
+        match self {
+            Self::Notebook(notebook) => SourceKind::IpyNotebook(notebook.make_ruff_notebook()),
+            Self::Python(py) => SourceKind::Python(py.contents().to_owned())
+        }
+    }
+
+    pub(crate) fn as_notebook(&self) -> Option<&NotebookDocument> {
+        match self {
+            Self::Notebook(notebook) => Some(&notebook),
+            Self::Python(_) => None,
+        }
+    }
+
+    pub(crate) fn as_python(&self) -> Option<&PythonDocument> {
+        match self {
+            Self::Python(py) => Some(&py),
+            Self::Notebook(_) => None,
+        }
+    }
+
+    pub(crate) fn as_mut_notebook(&mut self) -> Option<&mut NotebookDocument> {
+        match self {
+            Self::Notebook(mut notebook) => Some(&mut notebook),
+            Self::Python(_) => None,
+        }
+    }
+
+    pub(crate) fn as_mut_python(&mut self) -> Option<&mut PythonDocument> {
+        match self {
+            Self::Notebook(_) => None,
+            Self::Python(mut py) => Some(&mut py)
+        }
+    }
+
+    pub(crate) fn into_notebook(self) -> Option<NotebookDocument> {
+        match self {
+            Self::Notebook(notebook) => Some(notebook),
+            Self::Python(_) => None,
+        }
+    }
+
+    pub(crate) fn into_python(self) -> Option<PythonDocument> {
+        match self {
+            Self::Python(py) => Some(py),
+            Self::Notebook(_) => None,
+        }
+    }
+}
 
 /// A convenient enumeration for supported text encodings. Can be converted to [`lsp_types::PositionEncodingKind`].
 // Please maintain the order from least to greatest priority for the derived `Ord` impl.

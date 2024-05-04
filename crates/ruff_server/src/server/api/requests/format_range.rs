@@ -17,6 +17,7 @@ impl super::BackgroundDocumentRequestHandler for FormatRange {
         _notifier: Notifier,
         params: types::DocumentRangeFormattingParams,
     ) -> Result<super::FormatResponse> {
+        // TODO: format by cell
         let document = snapshot.document();
         let text = document.contents();
         let index = document.index();

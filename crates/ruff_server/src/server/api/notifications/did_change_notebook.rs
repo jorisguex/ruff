@@ -1,5 +1,3 @@
-use crate::server::api::diagnostics::publish_diagnostics_for_document;
-use crate::server::api::LSPResult;
 use crate::server::client::{Notifier, Requester};
 use crate::server::Result;
 use crate::session::Session;
@@ -16,19 +14,21 @@ impl super::SyncNotificationHandler for DidChangeNotebook {
     #[tracing::instrument(skip_all, fields(file=%uri))]
     fn run(
         session: &mut Session,
-        notifier: Notifier,
+        _notifier: Notifier,
         _requester: &mut Requester,
         types::DidChangeNotebookDocumentParams {
-            notebook_document:
-                types::VersionedNotebookDocumentIdentifier {
-                    uri,
-                    version: new_version,
-                },
-            change,
+            notebook_document: types::VersionedNotebookDocumentIdentifier { uri, version },
+            change: types::NotebookDocumentChangeEvent { cells, .. },
         }: types::DidChangeNotebookDocumentParams,
     ) -> Result<()> {
-        tracing::info!("Notebook Changed: {}", uri);
-        show_err_msg!("Notebook Changed");
+        if let Some(types::NotebookDocumentCellChange {
+            structure,
+            data,
+            text_content,
+        }) = cells
+        {
+            todo!()
+        }
         Ok(())
     }
 }

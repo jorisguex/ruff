@@ -260,8 +260,14 @@ impl Server {
             notebook_document_sync: Some(types::OneOf::Left(NotebookDocumentSyncOptions {
                 save: Some(false),
                 notebook_selector: [NotebookSelector::ByNotebook {
-                    notebook: types::Notebook::String("jupyter-notebook".to_string()),
-                    cells: None, // Is this correct? probably not.
+                    notebook: types::Notebook::NotebookDocumentFilter(
+                        types::NotebookDocumentFilter::ByType {
+                            notebook_type: "jupyter-notebook".to_string(),
+                            scheme: Some("file".to_string()),
+                            pattern: None,
+                        },
+                    ),
+                    cells: None,
                 }]
                 .to_vec(),
             })),

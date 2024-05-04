@@ -24,6 +24,7 @@ impl super::BackgroundDocumentRequestHandler for Format {
 }
 
 pub(super) fn format_document(snapshot: &DocumentSnapshot) -> Result<super::FormatResponse> {
+    // TODO: format by cell
     let doc = snapshot.document();
     let source = doc.contents();
     let formatted = crate::format::format(doc, snapshot.settings().formatter())

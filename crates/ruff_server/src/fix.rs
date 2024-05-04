@@ -19,7 +19,8 @@ pub(crate) fn fix_all(
     linter_settings: &LinterSettings,
     encoding: PositionEncoding,
 ) -> crate::Result<Vec<lsp_types::TextEdit>> {
-    let source = document.contents();
+    let source_kind = document.make_source_kind();
+    let source = source_kind.source_code();
 
     let document_path = document_url
         .to_file_path()
@@ -34,8 +35,6 @@ pub(crate) fn fix_all(
 
     let source_type = PySourceType::default();
 
-    // TODO(jane): Support Jupyter Notebooks
-    let source_kind = SourceKind::Python(source.to_string());
 
     // We need to iteratively apply all safe fixes onto a single file and then
     // create a diff between the modified file and the original source to use as a single workspace
@@ -73,7 +72,7 @@ pub(crate) fn fix_all(
 
     let modified_index = LineIndex::from_source_text(modified);
 
-    let source_index = document.index();
+    let source_index = document.make_index();
 
     let Replacement {
         source_range,
@@ -86,7 +85,7 @@ pub(crate) fn fix_all(
     );
 
     Ok(vec![lsp_types::TextEdit {
-        range: source_range.to_range(source, source_index, encoding),
+        range: source_range.to_range(source, &source_index, encoding),
         new_text: modified[modified_range].to_owned(),
     }])
 }

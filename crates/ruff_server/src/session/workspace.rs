@@ -8,7 +8,10 @@ use std::{
     sync::Arc,
 };
 
-use crate::{edit::DocumentVersion, Document};
+use crate::{
+    edit::{Document, DocumentVersion, NotebookDocument},
+    PythonDocument,
+};
 
 use self::ruff_settings::RuffSettingsIndex;
 
@@ -232,7 +235,7 @@ impl OpenDocuments {
 impl DocumentController {
     fn new(contents: String, version: DocumentVersion) -> Self {
         Self {
-            document: Arc::new(Document::new(contents, version)),
+            document: Arc::new(Document::Python(PythonDocument::new(contents, version))),
         }
     }
 

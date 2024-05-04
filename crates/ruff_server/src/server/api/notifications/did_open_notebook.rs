@@ -1,5 +1,4 @@
-use crate::server::api::diagnostics::publish_diagnostics_for_document;
-use crate::server::api::LSPResult;
+use crate::edit::NotebookDocument;
 use crate::server::client::{Notifier, Requester};
 use crate::server::Result;
 use crate::session::Session;
@@ -13,25 +12,24 @@ impl super::NotificationHandler for DidOpenNotebook {
 }
 
 impl super::SyncNotificationHandler for DidOpenNotebook {
-    #[tracing::instrument(skip_all, fields(file=%url))]
     fn run(
         session: &mut Session,
-        notifier: Notifier,
+        _notifier: Notifier,
         _requester: &mut Requester,
         types::DidOpenNotebookDocumentParams {
             notebook_document:
                 types::NotebookDocument {
                     uri: url,
-                    notebook_type,
                     version,
-                    metadata,
                     cells,
+                    ..
                 },
-            cell_text_documents: text_items,
+            cell_text_documents,
         }: types::DidOpenNotebookDocumentParams,
     ) -> Result<()> {
-        tracing::info!("DidOpenNotebook: {}", url);
-        show_err_msg!("DidOpenNotebook");
+        let notebook = NotebookDocument::new(version, cells, cell_text_documents);
+
+        session.open_notebook_document(&url, notebook);
 
         Ok(())
     }

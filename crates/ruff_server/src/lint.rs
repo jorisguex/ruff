@@ -14,7 +14,7 @@ use ruff_python_codegen::Stylist;
 use ruff_python_index::Indexer;
 use ruff_python_parser::lexer::LexResult;
 use ruff_python_parser::AsMode;
-use ruff_source_file::Locator;
+use ruff_source_file::{LineIndex, Locator};
 use ruff_text_size::Ranged;
 use serde::{Deserialize, Serialize};
 
@@ -43,8 +43,7 @@ pub(crate) fn check(
     linter_settings: &LinterSettings,
     encoding: PositionEncoding,
 ) -> Vec<lsp_types::Diagnostic> {
-    let contents = document.contents();
-    let index = document.index().clone();
+    let index = document.make_index();
 
     let document_path = document_url
         .to_file_path()
@@ -60,13 +59,13 @@ pub(crate) fn check(
     let source_type = PySourceType::default();
 
     // TODO(jane): Support Jupyter Notebooks
-    let source_kind = SourceKind::Python(contents.to_string());
+    let source_kind = document.make_source_kind();
 
     // Tokenize once.
-    let tokens: Vec<LexResult> = ruff_python_parser::tokenize(contents, source_type.as_mode());
+    let tokens: Vec<LexResult> = ruff_python_parser::tokenize(source_kind.source_code(), source_type.as_mode());
 
     // Map row and column locations to byte slices (lazily).
-    let locator = Locator::with_index(contents, index);
+    let locator = Locator::new(source_kind.source_code());
 
     // Detect the current code style (lazily).
     let stylist = Stylist::from_tokens(&tokens, &locator);
@@ -96,12 +95,13 @@ pub(crate) fn check(
 
     diagnostics
         .into_iter()
-        .map(|diagnostic| to_lsp_diagnostic(diagnostic, document, encoding))
+        .map(|diagnostic| to_lsp_diagnostic(diagnostic, &source_kind, &index, encoding))
         .collect()
 }
 
 pub(crate) fn fixes_for_diagnostics(
-    document: &crate::edit::Document,
+    source_kind: &SourceKind,
+    index: &LineIndex,
     encoding: PositionEncoding,
     diagnostics: Vec<lsp_types::Diagnostic>,
 ) -> crate::Result<Vec<DiagnosticFix>> {
@@ -123,7 +123,7 @@ pub(crate) fn fixes_for_diagnostics(
                 .map(|edit| lsp_types::TextEdit {
                     range: edit
                         .range()
-                        .to_range(document.contents(), document.index(), encoding),
+                        .to_range(source_kind.source_code(), index, encoding),
                     new_text: edit.content().unwrap_or_default().to_string(),
                 });
             Ok(Some(DiagnosticFix {
@@ -142,7 +142,8 @@ pub(crate) fn fixes_for_diagnostics(
 
 fn to_lsp_diagnostic(
     diagnostic: Diagnostic,
-    document: &crate::edit::Document,
+    source_kind: &SourceKind,
+    index: &LineIndex,
     encoding: PositionEncoding,
 ) -> lsp_types::Diagnostic {
     let Diagnostic {
@@ -167,7 +168,7 @@ fn to_lsp_diagnostic(
     let code = rule.noqa_code().to_string();
 
     lsp_types::Diagnostic {
-        range: range.to_range(document.contents(), document.index(), encoding),
+        range: range.to_range(source_kind.source_code(), index, encoding),
         severity: Some(severity(&code)),
         tags: tags(&code),
         code: Some(lsp_types::NumberOrString::String(code)),

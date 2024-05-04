@@ -60,7 +60,7 @@ fn quick_fix(
 ) -> crate::Result<Vec<CodeActionOrCommand>> {
     let document = snapshot.document();
 
-    let fixes = fixes_for_diagnostics(document, snapshot.encoding(), diagnostics)?;
+    let fixes = fixes_for_diagnostics(&document.make_source_kind(), &document.make_index(), snapshot.encoding(), diagnostics)?;
 
     fixes
         .into_iter()

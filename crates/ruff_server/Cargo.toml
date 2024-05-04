@@ -22,6 +22,7 @@ ruff_python_formatter = { path = "../ruff_python_formatter" }
 ruff_python_index = { path = "../ruff_python_index" }
 ruff_python_parser = { path = "../ruff_python_parser" }
 ruff_source_file = { path = "../ruff_source_file" }
+ruff_notebook = { path = "../ruff_notebook" }
 ruff_text_size = { path = "../ruff_text_size" }
 ruff_workspace = { path = "../ruff_workspace" }
 

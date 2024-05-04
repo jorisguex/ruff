@@ -32,13 +32,14 @@ impl super::SyncNotificationHandler for DidChange {
             .document_controller(&uri)
             .with_failure_code(lsp_server::ErrorCode::InvalidParams)?;
 
+        let document = document.make_mut().as_mut_python().expect("only python documents should be passed to didChange");
+
         if content_changes.is_empty() {
-            document.make_mut().update_version(new_version);
+            document.update_version(new_version);
             return Ok(());
         }
 
         document
-            .make_mut()
             .apply_changes(content_changes, new_version, encoding);
 
         // Publish diagnostics if the client doesnt support pull diagnostics
