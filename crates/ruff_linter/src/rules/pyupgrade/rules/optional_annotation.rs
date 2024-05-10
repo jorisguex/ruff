@@ -1,7 +1,7 @@
 use ruff_diagnostics::{Applicability, Diagnostic, Edit, Fix, FixAvailability, Violation};
 use ruff_macros::{derive_message_formats, violation};
-use ruff_python_ast::helpers::{pep_604_optional, pep_604_union};
-use ruff_python_ast::{self as ast, Expr};
+use ruff_python_ast::helpers::pep_604_optional;
+use ruff_python_ast::Expr;
 use ruff_python_semantic::analyze::typing::Pep604Operator;
 use ruff_text_size::Ranged;
 
@@ -10,7 +10,7 @@ use crate::fix::edits::pad;
 use crate::settings::types::PythonVersion;
 
 /// ## What it does
-/// Check for type annotations that can be rewritten based on [PEP 604] syntax.
+/// Check for Optional type annotations that can be rewritten based on [PEP 604] syntax.
 ///
 /// ## Why is this bad?
 /// [PEP 604] introduced a new syntax for union type annotations based on the
@@ -50,23 +50,23 @@ use crate::settings::types::PythonVersion;
 ///
 /// [PEP 604]: https://peps.python.org/pep-0604/
 #[violation]
-pub struct NonPEP604Annotation;
+pub struct OptionalAnnotation;
 
-impl Violation for NonPEP604Annotation {
+impl Violation for OptionalAnnotation {
     const FIX_AVAILABILITY: FixAvailability = FixAvailability::Sometimes;
 
     #[derive_message_formats]
     fn message(&self) -> String {
-        format!("Use `X | Y` for type annotations")
+        format!("Use `X | None` for Optional type annotations")
     }
 
     fn fix_title(&self) -> Option<String> {
-        Some("Convert to `X | Y`".to_string())
+        Some("Convert to `X | None`".to_string())
     }
 }
 
-/// UP007
-pub(crate) fn use_pep604_annotation(
+/// UP043
+pub(crate) fn optional_annotation(
     checker: &mut Checker,
     expr: &Expr,
     slice: &Expr,
@@ -84,69 +84,29 @@ pub(crate) fn use_pep604_annotation(
         Applicability::Unsafe
     };
 
-    match operator {
-        Pep604Operator::Optional => {
-            let mut diagnostic = Diagnostic::new(NonPEP604Annotation, expr.range());
-            if fixable && !checker.settings.preview.is_enabled() {
-                match slice {
-                    Expr::Tuple(_) => {
-                        // Invalid type annotation.
-                    }
-                    _ => {
-                        diagnostic.set_fix(Fix::applicable_edit(
-                            Edit::range_replacement(
-                                pad(
-                                    checker.generator().expr(&pep_604_optional(slice)),
-                                    expr.range(),
-                                    checker.locator(),
-                                ),
+    if let Pep604Operator::Optional = operator {
+        let mut diagnostic = Diagnostic::new(OptionalAnnotation, expr.range());
+        if fixable {
+            match slice {
+                Expr::Tuple(_) => {
+                    // Invalid type annotation.
+                }
+                _ => {
+                    diagnostic.set_fix(Fix::applicable_edit(
+                        Edit::range_replacement(
+                            pad(
+                                checker.generator().expr(&pep_604_optional(slice)),
                                 expr.range(),
+                                checker.locator(),
                             ),
-                            applicability,
-                        ));
-                    }
+                            expr.range(),
+                        ),
+                        applicability,
+                    ));
                 }
             }
-            checker.diagnostics.push(diagnostic);
         }
-        Pep604Operator::Union => {
-            let mut diagnostic = Diagnostic::new(NonPEP604Annotation, expr.range());
-            if fixable {
-                match slice {
-                    Expr::Slice(_) => {
-                        // Invalid type annotation.
-                    }
-                    Expr::Tuple(ast::ExprTuple { elts, .. }) => {
-                        diagnostic.set_fix(Fix::applicable_edit(
-                            Edit::range_replacement(
-                                pad(
-                                    checker.generator().expr(&pep_604_union(elts)),
-                                    expr.range(),
-                                    checker.locator(),
-                                ),
-                                expr.range(),
-                            ),
-                            applicability,
-                        ));
-                    }
-                    _ => {
-                        // Single argument.
-                        diagnostic.set_fix(Fix::applicable_edit(
-                            Edit::range_replacement(
-                                pad(
-                                    checker.locator().slice(slice).to_string(),
-                                    expr.range(),
-                                    checker.locator(),
-                                ),
-                                expr.range(),
-                            ),
-                            applicability,
-                        ));
-                    }
-                }
-            }
-            checker.diagnostics.push(diagnostic);
-        }
+        checker.diagnostics.push(diagnostic);
     }
 }
 

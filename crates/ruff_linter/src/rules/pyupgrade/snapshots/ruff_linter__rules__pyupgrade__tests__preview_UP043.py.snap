@@ -1,0 +1,132 @@
+---
+source: crates/ruff_linter/src/rules/pyupgrade/mod.rs
+---
+UP043.py:5:10: UP043 [*] Use `X | None` for Optional type annotations
+  |
+5 | def f(x: Optional[str]) -> None:
+  |          ^^^^^^^^^^^^^ UP043
+6 |     ...
+  |
+  = help: Convert to `X | None`
+
+ℹ Safe fix
+2 2 | from typing import Optional
+3 3 | 
+4 4 | 
+5   |-def f(x: Optional[str]) -> None:
+  5 |+def f(x: str | None) -> None:
+6 6 |     ...
+7 7 | 
+8 8 | 
+
+UP043.py:9:10: UP043 [*] Use `X | None` for Optional type annotations
+   |
+ 9 | def f(x: typing.Optional[str]) -> None:
+   |          ^^^^^^^^^^^^^^^^^^^^ UP043
+10 |     ...
+   |
+   = help: Convert to `X | None`
+
+ℹ Safe fix
+6  6  |     ...
+7  7  | 
+8  8  | 
+9     |-def f(x: typing.Optional[str]) -> None:
+   9  |+def f(x: str | None) -> None:
+10 10 |     ...
+11 11 | 
+12 12 | 
+
+UP043.py:14:8: UP043 [*] Use `X | None` for Optional type annotations
+   |
+13 | def f() -> None:
+14 |     x: Optional[str]
+   |        ^^^^^^^^^^^^^ UP043
+15 |     x = Optional[str]
+   |
+   = help: Convert to `X | None`
+
+ℹ Safe fix
+11 11 | 
+12 12 | 
+13 13 | def f() -> None:
+14    |-    x: Optional[str]
+   14 |+    x: str | None
+15 15 |     x = Optional[str]
+16 16 | 
+17 17 | 
+
+UP043.py:15:9: UP043 Use `X | None` for Optional type annotations
+   |
+13 | def f() -> None:
+14 |     x: Optional[str]
+15 |     x = Optional[str]
+   |         ^^^^^^^^^^^^^ UP043
+   |
+   = help: Convert to `X | None`
+
+UP043.py:18:10: UP043 Use `X | None` for Optional type annotations
+   |
+18 | def f(x: Optional[int : float]) -> None:
+   |          ^^^^^^^^^^^^^^^^^^^^^ UP043
+19 |     ...
+   |
+   = help: Convert to `X | None`
+
+UP043.py:22:10: UP043 Use `X | None` for Optional type annotations
+   |
+22 | def f(x: Optional[str, int : float]) -> None:
+   |          ^^^^^^^^^^^^^^^^^^^^^^^^^^ UP043
+23 |     ...
+   |
+   = help: Convert to `X | None`
+
+UP043.py:26:10: UP043 Use `X | None` for Optional type annotations
+   |
+26 | def f(x: Optional[int, float]) -> None:
+   |          ^^^^^^^^^^^^^^^^^^^^ UP043
+27 |     ...
+   |
+   = help: Convert to `X | None`
+
+UP043.py:32:28: UP043 [*] Use `X | None` for Optional type annotations
+   |
+30 |   # Regression test for: https://github.com/astral-sh/ruff/issues/7131
+31 |   class ServiceRefOrValue:
+32 |       service_specification: Optional[
+   |  ____________________________^
+33 | |         list[ServiceSpecificationRef]
+34 | |         | list[ServiceSpecification]
+35 | |     ] = None
+   | |_____^ UP043
+   |
+   = help: Convert to `X | None`
+
+ℹ Safe fix
+29 29 | 
+30 30 | # Regression test for: https://github.com/astral-sh/ruff/issues/7131
+31 31 | class ServiceRefOrValue:
+32    |-    service_specification: Optional[
+33    |-        list[ServiceSpecificationRef]
+34    |-        | list[ServiceSpecification]
+35    |-    ] = None
+   32 |+    service_specification: list[ServiceSpecificationRef] | list[ServiceSpecification] | None = None
+36 33 | 
+37 34 | 
+38 35 | # Regression test for: https://github.com/astral-sh/ruff/issues/7201
+
+UP043.py:40:28: UP043 [*] Use `X | None` for Optional type annotations
+   |
+38 | # Regression test for: https://github.com/astral-sh/ruff/issues/7201
+39 | class ServiceRefOrValue:
+40 |     service_specification: Optional[str]is not True = None
+   |                            ^^^^^^^^^^^^^ UP043
+   |
+   = help: Convert to `X | None`
+
+ℹ Safe fix
+37 37 | 
+38 38 | # Regression test for: https://github.com/astral-sh/ruff/issues/7201
+39 39 | class ServiceRefOrValue:
+40    |-    service_specification: Optional[str]is not True = None
+   40 |+    service_specification: str | None is not True = None
