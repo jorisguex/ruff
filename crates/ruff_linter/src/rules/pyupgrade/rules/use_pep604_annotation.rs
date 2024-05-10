@@ -87,7 +87,7 @@ pub(crate) fn use_pep604_annotation(
     match operator {
         Pep604Operator::Optional => {
             let mut diagnostic = Diagnostic::new(NonPEP604Annotation, expr.range());
-            if fixable && !checker.settings.preview.is_enabled() {
+            if fixable {
                 match slice {
                     Expr::Tuple(_) => {
                         // Invalid type annotation.
@@ -107,7 +107,9 @@ pub(crate) fn use_pep604_annotation(
                     }
                 }
             }
-            checker.diagnostics.push(diagnostic);
+            if !checker.settings.preview.is_enabled() {
+                checker.diagnostics.push(diagnostic);
+            }
         }
         Pep604Operator::Union => {
             let mut diagnostic = Diagnostic::new(NonPEP604Annotation, expr.range());
