@@ -44,25 +44,17 @@ pub(crate) fn expression(expr: &Expr, checker: &mut Checker) {
                             );
                         }
                     }
-                    if checker.enabled(Rule::NonPEP604Annotation) {
-                        if checker.source_type.is_stub()
-                            || checker.settings.target_version >= PythonVersion::Py310
-                            || (checker.settings.target_version >= PythonVersion::Py37
-                                && checker.semantic.future_annotations_or_stub()
-                                && checker.semantic.in_annotation()
-                                && !checker.settings.pyupgrade.keep_runtime_typing)
-                        {
+                    if checker.source_type.is_stub()
+                        || checker.settings.target_version >= PythonVersion::Py310
+                        || (checker.settings.target_version >= PythonVersion::Py37
+                            && checker.semantic.future_annotations_or_stub()
+                            && checker.semantic.in_annotation()
+                            && !checker.settings.pyupgrade.keep_runtime_typing)
+                    {
+                        if checker.enabled(Rule::NonPEP604Annotation) {
                             pyupgrade::rules::use_pep604_annotation(checker, expr, slice, operator);
                         }
-                    }
-                    if checker.enabled(Rule::OptionalAnnotation) {
-                        if checker.source_type.is_stub()
-                            || checker.settings.target_version >= PythonVersion::Py310
-                            || (checker.settings.target_version >= PythonVersion::Py37
-                                && checker.semantic.future_annotations_or_stub()
-                                && checker.semantic.in_annotation()
-                                && !checker.settings.pyupgrade.keep_runtime_typing)
-                        {
+                        if checker.enabled(Rule::OptionalAnnotation) {
                             pyupgrade::rules::optional_annotation(checker, expr, slice, operator);
                         }
                     }
