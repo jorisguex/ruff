@@ -25,6 +25,9 @@ use crate::settings::types::PythonVersion;
 /// Pydantic), you can disable this behavior for Python versions prior to 3.10
 /// by setting [`lint.pyupgrade.keep-runtime-typing`] to `true`.
 ///
+/// In [preview], this rule will no longer apply to `typing.Optional` usage,
+/// this functionality can be restored by enabling [UP043].
+///
 /// ## Example
 /// ```python
 /// from typing import Union
@@ -49,6 +52,8 @@ use crate::settings::types::PythonVersion;
 /// - `lint.pyupgrade.keep-runtime-typing`
 ///
 /// [PEP 604]: https://peps.python.org/pep-0604/
+/// [preview]: https://docs.astral.sh/ruff/preview/
+/// [UP043]: https://docs.astral.sh/ruff/rules/optional-annotation
 #[violation]
 pub struct NonPEP604Annotation;
 

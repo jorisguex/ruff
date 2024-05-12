@@ -10,12 +10,11 @@ use crate::fix::edits::pad;
 use crate::settings::types::PythonVersion;
 
 /// ## What it does
-/// Check for Optional type annotations that can be rewritten based on [PEP 604] syntax.
+/// Check for `Optional` type annotations that can be rewritten based on [PEP 604] syntax.
 ///
 /// ## Why is this bad?
-/// [PEP 604] introduced a new syntax for union type annotations based on the
-/// `|` operator. This syntax is more concise and readable than the previous
-/// `typing.Union` and `typing.Optional` syntaxes.
+/// [PEP 604] introduced a new syntax for `Optional` type annotations using `| None`.
+/// This syntax is more concise and readable than the previous `typing.Optional` syntax.
 ///
 /// This rule is enabled when targeting Python 3.10 or later (see:
 /// [`target-version`]). By default, it's _also_ enabled for earlier Python
@@ -24,6 +23,8 @@ use crate::settings::types::PythonVersion;
 /// on runtime type annotations (either directly or via a library like
 /// Pydantic), you can disable this behavior for Python versions prior to 3.10
 /// by setting [`lint.pyupgrade.keep-runtime-typing`] to `true`.
+///
+/// This functionality was previously applied by [UP007], but in [preview] has been extracted into this new rule.
 ///
 /// ## Example
 /// ```python
@@ -49,6 +50,8 @@ use crate::settings::types::PythonVersion;
 /// - `lint.pyupgrade.keep-runtime-typing`
 ///
 /// [PEP 604]: https://peps.python.org/pep-0604/
+/// [preview]: https://docs.astral.sh/ruff/preview/
+/// [UP007]: https://docs.astral.sh/ruff/rules/non-pep604-annotation/
 #[violation]
 pub struct OptionalAnnotation;
 
